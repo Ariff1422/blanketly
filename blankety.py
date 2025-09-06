@@ -49,7 +49,15 @@ def multi_model_imputation(data: List[Optional[float]]) -> List[float]:
     
     # The number of data points for fitting the AR model
     nobs = len(residuals)
-    max_lag = min(10, nobs - 1)
+    # Corrected max_lag to ensure at least one degree of freedom for the model
+    # (lags + constant). This prevents the ZeroDivisionError.
+    max_lag = min(10, nobs - 2)
+
+    if max_lag < 1:
+        # If there are too few residuals to fit an AR model, skip to the fallback.
+        print("Not enough data points to fit an AR model. Falling back to linear interpolation.")
+        final_imputed_values = series.interpolate(method='linear', limit_direction='both').values
+        return np.nan_to_num(final_imputed_values, nan=0.0, posinf=1e9, neginf=-1e9).tolist()
 
     for lag in range(1, max_lag + 1):
         try:
