@@ -64,21 +64,23 @@ def multi_model_imputation(data: List[Optional[float]]) -> List[float]:
 
     # Step 4: Fit the final AR model using the best lag found.
     # If no suitable lag was found, fall back gracefully.
+    final_imputed_values = trend_imputed.copy()
     try:
         model = AutoReg(residuals, lags=best_lag, old_names=False)
         model_fit = model.fit()
         
-        # Step 5: Use the AR model to predict residuals for the missing points.
+        # Step 5: Use the AR model to forecast residuals for the missing points.
         missing_indices = series.isnull().index[series.isnull()]
-        forecasted_residuals = model_fit.predict(start=len(known_indices), end=len(known_indices) + len(missing_indices) - 1)
+        forecasted_residuals = model_fit.forecast(steps=len(missing_indices))
         
         # Step 6: Combine the trend and the forecasted residuals for final imputation.
-        final_imputed_values = trend_imputed
-        final_imputed_values[missing_indices] = trend_imputed[missing_indices] + forecasted_residuals.values
+        if len(forecasted_residuals) == len(missing_indices):
+            final_imputed_values[missing_indices] = trend_imputed[missing_indices] + forecasted_residuals.values
         
-    except (ValueError, np.linalg.LinAlgError, IndexError):
-        # Fallback to pure spline interpolation if the AR model fails to fit or predict.
-        final_imputed_values = trend_imputed
+    except (ValueError, np.linalg.LinAlgError, IndexError, Exception):
+        # Fallback to linear interpolation if the AR model fails to fit or predict.
+        print("An error occurred during AR model fitting/prediction. Falling back to linear interpolation.")
+        final_imputed_values = series.interpolate(method='linear', limit_direction='both').values
     
     # Clamp values to avoid instability or NaNs/Infs that could result from complex models.
     final_imputed_values = np.nan_to_num(final_imputed_values, nan=0.0, posinf=1e9, neginf=-1e9)
@@ -100,4 +102,4 @@ async def blankety(data: SeriesData):
 
 if __name__ == "__main__":
     # Start the Uvicorn server.
-    uvicorn.run(app, host="0.0.0.0", port=5000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
