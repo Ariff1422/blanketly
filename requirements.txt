@@ -2,4 +2,7 @@ numpy
 scipy
 fastapi
 scikit-learn
+pandas
+statsmodels
+pydantic
 uvicorn[standard]
